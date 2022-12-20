@@ -1,33 +1,53 @@
+using Microsoft.AspNetCore.HttpLogging;
 using NLog;
 using NLog.Web;
+using WeatherStationService;
+using WeatherStationService.Configuration;
 
 var logger = NLog.LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("init main");
 try
 {
-    var builder = WebApplication.CreateBuilder(args);
+    var webApplicationOptions = new WebApplicationOptions()
+    {
+        ContentRootPath = AppContext.BaseDirectory,
+        Args = args,
+        ApplicationName = System.Diagnostics.Process.GetCurrentProcess().ProcessName
+    };
 
-    // NLog: Setup NLog for Dependency injection
-    builder.Logging.ClearProviders();
-    builder.Host.UseNLog();
+    var builder = WebApplication.CreateBuilder(webApplicationOptions);
+
+    ConfigurationManager configuration = builder.Configuration;
+
+    builder.Services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
+
+    builder.AddNlog();
+    builder.AddWindowsService();
+    builder.AddServices();
+
+    builder.Services.AddHttpLogging(options =>
+    {
+        options.LoggingFields = HttpLoggingFields.RequestPath
+            | HttpLoggingFields.RequestBody
+            | HttpLoggingFields.ResponseStatusCode;
+    });
+
 
     // Add services to the container.
+    builder.Services.AddHostedService<WeatherServer>();
 
     builder.Services.AddControllers();
-    // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
 
     var app = builder.Build();
 
     // Configure the HTTP request pipeline.
-    if (app.Environment.IsDevelopment())
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI();
-    }
+    app.ConfigureSwagger();
 
-    app.UseAuthorization();
+    app.UseCors(x => x
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .SetIsOriginAllowed(_ => true) // allow any origin
+        .AllowCredentials());
 
     app.MapControllers();
 
