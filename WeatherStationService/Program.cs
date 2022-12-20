@@ -34,7 +34,7 @@ try
 
 
     // Add services to the container.
-    builder.Services.AddHostedService<WeatherServer>();
+    builder.Services.AddHostedService<WeatherService>();
 
     builder.Services.AddControllers();
 
